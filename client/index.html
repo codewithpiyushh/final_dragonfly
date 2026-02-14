@@ -144,15 +144,45 @@
                 <h3 style="margin:0; color:#D32F2F;">Create New Project</h3>
                 <span class="material-icons-outlined" onclick="closeCreateModal()" style="cursor:pointer; color:#666;">close</span>
             </div>
+            
             <div style="padding: 25px; display:flex; flex-direction:column; gap:15px;">
-                <div class="input-group-formal"><label>Project Name <span style="color:red">*</span></label><input type="text" id="cp-name"></div>
-                <div style="display:flex; gap:15px;">
-                    <div class="input-group-formal" style="flex:1;"><label>LOB <span style="color:red">*</span></label><select id="cp-lob"><option value="">Select...</option><option>ABHFL</option><option>CPX</option></select></div>
-                    <div class="input-group-formal" style="flex:1;"><label>Dept <span style="color:red">*</span></label><select id="cp-dept"><option value="">Select...</option><option>Finance</option><option>Risk</option></select></div>
+                <div class="input-group-formal">
+                    <label>Project Name <span style="color:red">*</span></label>
+                    <input type="text" id="cp-name">
                 </div>
-                <div class="input-group-formal"><label>Description</label><textarea id="cp-desc" rows="3" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea></div>
+
+                <div style="display:flex; gap:15px;">
+                    <div class="input-group-formal" style="flex:1;">
+                        <label>LOB <span style="color:red">*</span></label>
+                        <select id="cp-lob">
+                            <option value="">Select...</option>
+                            <option>ABHFL</option>
+                            <option>CPX</option>
+                        </select>
+                    </div>
+                    <div class="input-group-formal" style="flex:1;">
+                        <label>Dept <span style="color:red">*</span></label>
+                        <select id="cp-dept">
+                            <option value="">Select...</option>
+                            <option>Finance</option>
+                            <option>Risk</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group-formal">
+                    <label>Application</label>
+                    <input type="text" id="cp-app" placeholder="e.g. LOS, LMS">
+                </div>
+
+                <div class="input-group-formal">
+                    <label>Description</label>
+                    <textarea id="cp-desc" rows="3" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></textarea>
+                </div>
+                
                 <p id="cp-error" class="error-msg"></p>
             </div>
+
             <div style="padding:20px; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; background:#fafafa;">
                 <button class="btn-secondary" onclick="closeCreateModal()">Cancel</button>
                 <button class="btn-primary" onclick="submitCreateProject()">Create Project</button>

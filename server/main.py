@@ -3,7 +3,7 @@ import json
 import asyncio
 import urllib.parse
 import websockets
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -27,21 +27,19 @@ app.add_middleware(
 )
 
 # --- CONFIGURATION (LOADED FROM .ENV) ---
-# 2. Get values from .env (Use lowercase variables to store them)
 mongo_user_env = os.getenv("MONGO_USER")
 mongo_pass_env = os.getenv("MONGO_PASSWORD")
 mongo_cluster_env = os.getenv("MONGO_CLUSTER")
 DB_NAME = os.getenv("DB_NAME")
 
-# 3. URL Encode the password (safety check)
+# URL Encode the password (safety check)
 if not mongo_pass_env:
     print("❌ WARNING: MONGO_PASSWORD not found in .env file")
     mongo_pass_encoded = ""
 else:
     mongo_pass_encoded = urllib.parse.quote_plus(mongo_pass_env)
 
-# 4. Construct URI using the MATCHING lowercase variables
-# (This fixes the NameError you were seeing)
+# Construct URI
 if mongo_user_env and mongo_cluster_env:
     MONGO_URI = f"mongodb+srv://{mongo_user_env}:{mongo_pass_encoded}@{mongo_cluster_env}/?retryWrites=true&w=majority"
 else:
@@ -55,7 +53,7 @@ AGENT_NAME = os.getenv("AZURE_AGENT_NAME")
 AGENT_HEADERS = {"Ocp-Apim-Subscription-Key": os.getenv("AZURE_SUB_KEY", "")}
 
 # --- DB INIT ---
-db = None # Initialize globally to prevent NameError in routes
+db = None # Initialize globally to prevent NameError
 
 if MONGO_URI:
     try:
@@ -114,11 +112,15 @@ async def login(user: UserAuth):
         print(f"Login Error: {e}")
         raise HTTPException(status_code=500, detail="Login failed")
 
+# UPDATED: Filters projects by Owner
 @app.get("/api/projects")
-async def get_projects():
+async def get_projects(owner: str = Query(None)):
     if db is None: return []
     try:
-        projects = await db.projects.find().to_list(100)
+        # If owner is provided, filter by it. Otherwise return all.
+        query = {"owner": owner} if owner else {}
+        
+        projects = await db.projects.find(query).to_list(100)
         for p in projects:
             p["id"] = str(p["_id"])
             del p["_id"]
@@ -142,6 +144,9 @@ async def delete_project(project_id: str):
     if db is None: raise HTTPException(503, "Database not connected")
     try:
         res = await db.projects.delete_one({"_id": ObjectId(project_id)})
+        # Also delete versions associated with this project
+        await db.versions.delete_many({"projectId": project_id})
+        
         if res.deleted_count == 1: return {"status": "success"}
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
@@ -172,8 +177,14 @@ async def mock_agent_responder(client_ws: WebSocket):
     try:
         while True:
             data = await client_ws.receive_text()
-            response_text = "### Mock Response\nThis is a simulation because the Azure Agent is currently unavailable."
-            chunk_size = 10
+            user_input = json.loads(data).get("input", "").lower()
+            
+            if "toc" in user_input:
+                response_text = "1. Executive Summary\n2. Scope\n3. Functional Requirements\n4. Risks"
+            else:
+                response_text = "### Mock Response\nThis is a simulation because the Azure Agent is currently unavailable."
+            
+            chunk_size = 5
             for i in range(0, len(response_text), chunk_size):
                 chunk = response_text[i:i+chunk_size]
                 await client_ws.send_text(json.dumps({"type": "stream", "message": chunk}))

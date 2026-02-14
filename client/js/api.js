@@ -22,8 +22,10 @@ window.api = {
         return await res.json();
     },
 
-    getProjects: async () => {
-        const res = await fetch(`${API_CONFIG.BASE}/projects`);
+    // UPDATED: Accepts owner parameter
+    getProjects: async (owner) => {
+        const url = owner ? `${API_CONFIG.BASE}/projects?owner=${owner}` : `${API_CONFIG.BASE}/projects`;
+        const res = await fetch(url);
         return await res.json();
     },
     

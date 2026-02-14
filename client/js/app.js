@@ -6,52 +6,40 @@ let streamTarget = "editor";
 
 // INIT
 window.addEventListener('DOMContentLoaded', () => {
-    console.log("App Initialized");
     const storedUser = localStorage.getItem('user');
     
     if (storedUser) {
         currentUser = storedUser;
         updateUserProfile(currentUser);
-        // FORCE SWITCH TO DASHBOARD
+        // Force Dashboard
         showView('view-dashboard');
         loadProjects();
         if (window.api && window.api.initSocket) window.api.initSocket(handleAgentStream);
     } else {
-        // FORCE SWITCH TO AUTH
+        // Force Auth
         showView('view-auth');
     }
 });
 
-// --- NAVIGATION (CRITICAL FIX) ---
+// --- NAVIGATION ---
 function showView(viewId) {
-    console.log("Switching to view:", viewId);
-
-    // 1. Get all views
-    const views = document.querySelectorAll('.view');
-    
-    // 2. Hide ALL views forcefully
-    views.forEach(v => {
-        v.style.display = 'none';       // Inline CSS override
-        v.classList.remove('active');   // Class removal
+    // 1. Force Hide All
+    document.querySelectorAll('.view').forEach(v => {
+        v.style.display = 'none';
+        v.classList.remove('active');
     });
 
-    // 3. Show ONLY the target view
+    // 2. Force Show Target
     const target = document.getElementById(viewId);
     if (target) {
-        target.style.display = 'flex';  // Inline CSS override
-        target.classList.add('active'); // Class addition
-    } else {
-        console.error("View not found:", viewId);
+        target.style.display = 'flex';
+        target.classList.add('active');
     }
 
-    // 4. Toggle Navbar visibility
+    // 3. Navbar Logic
     const nav = document.getElementById('main-navbar');
     if (nav) {
-        if (viewId === 'view-auth') {
-            nav.style.display = 'none';
-        } else {
-            nav.style.display = 'flex';
-        }
+        nav.style.display = (viewId === 'view-auth') ? 'none' : 'flex';
     }
 }
 
@@ -59,12 +47,9 @@ function closeWorkspace() { showView('view-dashboard'); }
 
 // --- AUTH ---
 async function handleAuthAction() {
-    const userBtn = document.getElementById('auth-user');
-    const passBtn = document.getElementById('auth-pass');
+    const user = document.getElementById('auth-user').value;
+    const pass = document.getElementById('auth-pass').value;
     const errorMsg = document.getElementById('auth-error');
-
-    const user = userBtn.value;
-    const pass = passBtn.value;
 
     if (!user || !pass) {
         if(errorMsg) errorMsg.innerText = "Please enter credentials";
@@ -76,19 +61,16 @@ async function handleAuthAction() {
         if (isLoginMode) response = await window.api.login(user, pass);
         else response = await window.api.register(user, pass);
 
-        // Login Success
         currentUser = response.username;
         localStorage.setItem('user', currentUser);
         updateUserProfile(currentUser);
         
         if(window.api.initSocket) window.api.initSocket(handleAgentStream);
         
-        // CRITICAL: Load data THEN switch view
         await loadProjects();
         showView('view-dashboard'); 
 
     } catch (e) {
-        console.error(e);
         if(errorMsg) errorMsg.innerText = e.message;
     }
 }
@@ -117,7 +99,10 @@ function logout() {
 // --- PROJECTS ---
 async function loadProjects() {
     try {
-        const projects = await window.api.getProjects();
+        if (!currentUser) return;
+
+        // PASS CURRENT USER TO API
+        const projects = await window.api.getProjects(currentUser);
         const tbody = document.getElementById('project-table-body');
         if (!tbody) return;
         
@@ -152,27 +137,46 @@ async function deleteProject(id) {
     }
 }
 
-// --- CREATE PROJECT ---
+// --- CREATE PROJECT (FIXED) ---
 function openCreateModal() { document.getElementById('modal-create-project').style.display = 'flex'; }
 function closeCreateModal() { document.getElementById('modal-create-project').style.display = 'none'; }
 
 async function submitCreateProject() {
-    const name = document.getElementById('cp-name').value;
-    const lob = document.getElementById('cp-lob').value;
-    const dept = document.getElementById('cp-dept').value;
+    // 1. Get Elements safely
+    const nameEl = document.getElementById('cp-name');
+    const lobEl = document.getElementById('cp-lob');
+    const deptEl = document.getElementById('cp-dept');
+    const appEl = document.getElementById('cp-app');   
+    const descEl = document.getElementById('cp-desc'); 
+
+    // 2. Get Values with defaults
+    const name = nameEl ? nameEl.value : "";
+    const lob = lobEl ? lobEl.value : "";
+    const dept = deptEl ? deptEl.value : "";
+    const app = appEl ? appEl.value : "General";
+    const desc = descEl ? descEl.value : "";
     
-    if(!name || !lob || !dept) return alert("Fill mandatory fields (*)");
+    // 3. Validate
+    if(!name || !lob || !dept) {
+        return alert("Please fill in all mandatory fields (*)");
+    }
     
+    // 4. Send
     try {
         await window.api.createProject({
-            name, lob, department: dept,
-            application: document.getElementById('cp-app').value,
-            description: document.getElementById('cp-desc').value,
-            owner: currentUser
+            name: name,
+            lob: lob,
+            department: dept,
+            application: app,
+            description: desc,
+            owner: currentUser || "System"
         });
         closeCreateModal();
         await loadProjects();
-    } catch(e) { alert(e.message); }
+    } catch(e) { 
+        console.error(e);
+        alert("Error: " + e.message); 
+    }
 }
 
 // --- WORKSPACE & AGENT ---
@@ -214,14 +218,18 @@ function sendToAgent() {
 function handleAgentStream(chunk) {
     if(streamTarget === 'modal') {
         const el = document.getElementById('toc-draft-input');
-        el.value += chunk;
-        el.scrollTop = el.scrollHeight;
+        if(el) {
+            el.value += chunk;
+            el.scrollTop = el.scrollHeight;
+        }
     } else {
         const el = document.getElementById('brd-editor');
-        accumulatedText += chunk;
-        el.innerHTML = accumulatedText.replace(/\n/g, "<br>").replace(/### (.*?)(<br>|$)/g, "<h3>$1</h3>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
-        el.scrollTop = el.scrollHeight;
-        updateTOCSidebar();
+        if(el) {
+            accumulatedText += chunk;
+            el.innerHTML = accumulatedText.replace(/\n/g, "<br>").replace(/### (.*?)(<br>|$)/g, "<h3>$1</h3>").replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+            el.scrollTop = el.scrollHeight;
+            updateTOCSidebar();
+        }
     }
 }
 
