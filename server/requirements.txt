@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+websockets
+motor
+python-dotenv
+jinja2
+pydantic
