@@ -10,6 +10,10 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from datetime import datetime
 from bson import ObjectId
+from dotenv import load_dotenv 
+
+# 1. Load environment variables
+load_dotenv() 
 
 app = FastAPI()
 
@@ -22,23 +26,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIG ---
-username = "divyansh.panwar2003"
-password = urllib.parse.quote_plus("Dehradun12345") 
-MONGO_URI = f"mongodb+srv://divyanshpanwar2003:{password}@cluster0.jeeeofd.mongodb.net/?retryWrites=true&w=majority"
-DB_NAME = "sdlc_studio"
+# --- CONFIGURATION (LOADED FROM .ENV) ---
+# 2. Get values from .env (Use lowercase variables to store them)
+mongo_user_env = os.getenv("MONGO_USER")
+mongo_pass_env = os.getenv("MONGO_PASSWORD")
+mongo_cluster_env = os.getenv("MONGO_CLUSTER")
+DB_NAME = os.getenv("DB_NAME")
 
-# AZURE CONFIG
-AGENT_WSS_URL = "wss://eygenaistudio-apim-kubernetes-dev.azure-api.net/eygs-ctp/ws/demoragagent-4b14bc4d/deployed_agent_chat?token=BC4B1_2026-02-11_11_38_19&agent_name=95fb5d5f-b3d5-4f24-8f4e-1e6f1ad7bf40&subscription-key=cb6d3d69c4c4449ea5d42721380c008d"
-AGENT_NAME = "95fb5d5f-b3d5-4f24-8f4e-1e6f1ad7bf40"
+# 3. URL Encode the password (safety check)
+if not mongo_pass_env:
+    print("❌ WARNING: MONGO_PASSWORD not found in .env file")
+    mongo_pass_encoded = ""
+else:
+    mongo_pass_encoded = urllib.parse.quote_plus(mongo_pass_env)
+
+# 4. Construct URI using the MATCHING lowercase variables
+# (This fixes the NameError you were seeing)
+if mongo_user_env and mongo_cluster_env:
+    MONGO_URI = f"mongodb+srv://{mongo_user_env}:{mongo_pass_encoded}@{mongo_cluster_env}/?retryWrites=true&w=majority"
+else:
+    MONGO_URI = None
+    print("❌ CRITICAL: MONGO_USER or MONGO_CLUSTER missing in .env")
+
+# Azure Agent
+AGENT_WSS_URL = os.getenv("AZURE_AGENT_WSS_URL")
+AGENT_NAME = os.getenv("AZURE_AGENT_NAME")
+# Use a default empty string if key is missing to prevent crash
+AGENT_HEADERS = {"Ocp-Apim-Subscription-Key": os.getenv("AZURE_SUB_KEY", "")}
 
 # --- DB INIT ---
-try:
-    client = AsyncIOMotorClient(MONGO_URI)
-    db = client[DB_NAME]
-    print(f"Connected to MongoDB")
-except Exception as e:
-    print(f"CRITICAL DB ERROR: {e}")
+db = None # Initialize globally to prevent NameError in routes
+
+if MONGO_URI:
+    try:
+        client = AsyncIOMotorClient(MONGO_URI)
+        db = client[DB_NAME]
+        print(f"✅ Connected to MongoDB at {mongo_cluster_env}")
+    except Exception as e:
+        print(f"❌ CRITICAL DB ERROR: {e}")
+else:
+    print("⚠️  Skipping DB connection due to missing config.")
 
 # --- MODELS ---
 class UserAuth(BaseModel):
@@ -66,41 +93,41 @@ class ProjectVersion(BaseModel):
 
 @app.post("/api/register")
 async def register(user: UserAuth):
+    if db is None: raise HTTPException(503, "Database not connected")
     try:
         existing = await db.users.find_one({"username": user.username})
-        if existing:
-            raise HTTPException(status_code=400, detail="User already exists")
+        if existing: raise HTTPException(status_code=400, detail="User already exists")
         await db.users.insert_one(user.dict())
         return {"status": "success", "username": user.username}
     except Exception as e:
-        print(f"REGISTER ERROR: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Register Error: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed")
 
 @app.post("/api/login")
 async def login(user: UserAuth):
+    if db is None: raise HTTPException(503, "Database not connected")
     try:
         record = await db.users.find_one({"username": user.username, "password": user.password})
-        if not record:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not record: raise HTTPException(status_code=401, detail="Invalid credentials")
         return {"status": "success", "username": user.username}
     except Exception as e:
-        print(f"LOGIN ERROR: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Login Error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 @app.get("/api/projects")
 async def get_projects():
+    if db is None: return []
     try:
         projects = await db.projects.find().to_list(100)
         for p in projects:
             p["id"] = str(p["_id"])
             del p["_id"]
         return projects
-    except Exception as e:
-        print(f"PROJECTS ERROR: {e}")
-        return []
+    except Exception as e: return []
 
 @app.post("/api/projects")
 async def create_project(project: Project):
+    if db is None: raise HTTPException(503, "Database not connected")
     try:
         new_p = project.dict()
         res = await db.projects.insert_one(new_p)
@@ -108,55 +135,62 @@ async def create_project(project: Project):
         if "_id" in new_p: del new_p["_id"]
         return new_p
     except Exception as e:
-        print(f"CREATE PROJECT ERROR: {e}")
         raise HTTPException(status_code=500, detail="Failed to create project")
 
 @app.delete("/api/projects/{project_id}")
 async def delete_project(project_id: str):
+    if db is None: raise HTTPException(503, "Database not connected")
     try:
-        result = await db.projects.delete_one({"_id": ObjectId(project_id)})
-        # Optional: Delete associated versions
-        await db.versions.delete_many({"projectId": project_id})
-        
-        if result.deleted_count == 1:
-            return {"status": "success"}
-        raise HTTPException(status_code=404, detail="Project not found")
-    except Exception as e:
-        print(f"DELETE ERROR: {e}")
-        raise HTTPException(status_code=500, detail="Delete failed")
+        res = await db.projects.delete_one({"_id": ObjectId(project_id)})
+        if res.deleted_count == 1: return {"status": "success"}
+        raise HTTPException(status_code=404, detail="Not found")
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# --- VERSIONING ROUTES ---
 @app.post("/api/versions")
 async def save_version(version: ProjectVersion):
+    if db is None: raise HTTPException(503, "Database not connected")
     try:
         v_dict = version.dict()
         res = await db.versions.insert_one(v_dict)
         return {"status": "success", "id": str(res.inserted_id)}
-    except Exception as e:
-        print(f"VERSION ERROR: {e}")
-        raise HTTPException(status_code=500, detail="Save version failed")
+    except Exception as e: raise HTTPException(status_code=500, detail="Save failed")
 
 @app.get("/api/versions/{project_id}")
 async def get_versions(project_id: str):
+    if db is None: return []
     try:
         versions = await db.versions.find({"projectId": project_id}).sort("timestamp", -1).to_list(100)
         for v in versions:
             v["id"] = str(v["_id"])
             del v["_id"]
         return versions
-    except Exception as e:
-        return []
+    except Exception as e: return []
 
-# --- AGENT PROXY ---
+# --- WEBSOCKET WITH MOCK FALLBACK ---
+async def mock_agent_responder(client_ws: WebSocket):
+    await client_ws.send_text(json.dumps({"type": "stream", "message": "\n\n**[OFFLINE MODE]** Azure Agent is down. Using Mock Responder.\n\n"}))
+    try:
+        while True:
+            data = await client_ws.receive_text()
+            response_text = "### Mock Response\nThis is a simulation because the Azure Agent is currently unavailable."
+            chunk_size = 10
+            for i in range(0, len(response_text), chunk_size):
+                chunk = response_text[i:i+chunk_size]
+                await client_ws.send_text(json.dumps({"type": "stream", "message": chunk}))
+                await asyncio.sleep(0.05) 
+            await client_ws.send_text(json.dumps({"type": "end", "message": ""}))
+    except Exception: pass
+
 @app.websocket("/ws/chat")
 async def websocket_endpoint(client_ws: WebSocket):
     await client_ws.accept()
-    print("WS Connected")
+    print("Browser connected to WS")
+    
     try:
-        async with websockets.connect(
-            AGENT_WSS_URL,
-            additional_headers={"Ocp-Apim-Subscription-Key": "cb6d3d69c4c4449ea5d42721380c008d"}
-        ) as azure_ws:
+        if not AGENT_WSS_URL: raise Exception("No Azure URL Configured")
+        
+        async with websockets.connect(AGENT_WSS_URL, additional_headers=AGENT_HEADERS) as azure_ws:
+            print("✅ Connected to Azure Agent")
             async def browser_to_azure():
                 try:
                     while True:
@@ -169,20 +203,20 @@ async def websocket_endpoint(client_ws: WebSocket):
                             "inputs": {"input": user_input}
                         }
                         await azure_ws.send(json.dumps(payload))
-                except Exception:
-                    await azure_ws.close()
+                except Exception: await azure_ws.close()
 
             async def azure_to_browser():
                 try:
                     while True:
                         res = await azure_ws.recv()
                         await client_ws.send_text(res)
-                except Exception:
-                    await client_ws.close()
+                except Exception: await client_ws.close()
 
             await asyncio.gather(browser_to_azure(), azure_to_browser())
-    except Exception as e:
-        print(f"WS Error: {e}")
-        await client_ws.close()
 
+    except Exception as e:
+        print(f"⚠️ Azure Agent Error: {e}")
+        await mock_agent_responder(client_ws)
+
+# --- STATIC FILES ---
 app.mount("/", StaticFiles(directory="../client", html=True), name="static")
