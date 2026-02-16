@@ -50,7 +50,20 @@ window.api = {
         });
         return await res.json();
     },
+    // ... existing functions ...
 
+    // NEW: Function to save current editor state
+    saveProjectContent: async (id, content) => {
+        const res = await fetch(`${API_CONFIG.BASE}/projects/${id}/content`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ content })
+        });
+        if (!res.ok) throw new Error("Failed to auto-save content");
+        return await res.json();
+    },
+
+    // ... socket logic ...
     getVersions: async (projectId) => {
         const res = await fetch(`${API_CONFIG.BASE}/versions/${projectId}`);
         return await res.json();
