@@ -4,7 +4,7 @@
 let isLoginMode = true;
 let currentUser = null;
 let accumulatedText = "";
-let streamTarget = "editor"; 
+let streamTarget = "editor"; // Controls where the AI text goes (editor, modal, modal_split)
 let currentVersionHistory = [];
 
 // Guided Prompts State
@@ -17,26 +17,21 @@ let promptFiles = {
 };
 
 // ==========================================
-// 2. INITIALIZATION (UPDATED: BYPASS AUTH)
+// 2. INITIALIZATION
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
-    // Check for existing user, or create a default one to bypass login
-    let storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem('user');
     
-    if (!storedUser) {
-        storedUser = "Administrator"; // Default Bypass User
-        localStorage.setItem('user', storedUser);
-    }
-    
-    currentUser = storedUser;
-    updateUserProfile(currentUser);
-    
-    // FORCE LANDING PAGE (Dashboard)
-    showView('view-dashboard');
-    loadProjects();
-    
-    if (window.api && window.api.initSocket) {
-        window.api.initSocket(handleAgentStream);
+    if (storedUser) {
+        currentUser = storedUser;
+        updateUserProfile(currentUser);
+        showView('view-dashboard');
+        loadProjects();
+        if (window.api && window.api.initSocket) {
+            window.api.initSocket(handleAgentStream);
+        }
+    } else {
+        showView('view-auth');
     }
 });
 
@@ -57,7 +52,6 @@ function showView(viewId) {
 
     const nav = document.getElementById('main-navbar');
     if (nav) {
-        // Always show navbar unless explicitly in auth view (which is now hidden)
         nav.style.display = (viewId === 'view-auth') ? 'none' : 'flex';
     }
 }
@@ -166,7 +160,6 @@ async function loadProjects() {
                 <td style="padding:12px;">${p.module || '-'}</td>
                 <td style="padding:12px;">${p.owner || 'System'}</td>
                 <td style="padding:12px; font-size:13px; color:#666;">${p.createdOn || '-'}</td>
-                
                 <td style="padding:12px; display:flex; align-items:center; gap:15px;">
                     <button onclick="openWorkspace('${p.id}', '${p.name}', '${p.lob}', '${p.department}')" 
                         style="background-color: white; border: 1px solid #D32F2F; color: #D32F2F; padding: 6px 16px; font-size: 11px; font-weight: 600; border-radius: 4px; cursor: pointer; text-transform: uppercase; white-space: nowrap;"
@@ -455,7 +448,7 @@ async function restoreVersionByIndex(index) {
 // 9. AGENT & TOC UTILITIES (SPLIT MODE)
 // ==========================================
 function openTocModal() { 
-    // Clear 3 columns
+    // Clear all 3 columns
     document.getElementById('toc-structure').value = ""; // Column 1
     document.getElementById('toc-context').value = "";   // Column 2
     document.getElementById('toc-persona-editor').innerHTML = ""; // Column 3
