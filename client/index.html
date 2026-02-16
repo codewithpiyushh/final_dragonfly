@@ -10,6 +10,8 @@
 </head>
 <body>
 
+    <div id="toast-container"></div>
+
     <nav class="navbar" id="main-navbar" style="display:none;">
         <div class="brand">
             <span class="material-icons-outlined" style="color: #D32F2F;">grid_view</span>
@@ -23,36 +25,6 @@
             <span class="material-icons-outlined" onclick="logout()" style="cursor:pointer; color:#666;">logout</span>
         </div>
     </nav>
-
-    <div id="view-auth" class="view active">
-        <div class="auth-wrapper">
-            <div class="auth-card">
-                <div class="auth-header">
-                    <h2 id="auth-title">Sign In</h2>
-                    <p>Access your project workspace</p>
-                </div>
-                <div class="form-body">
-                    <div class="input-group-formal">
-                        <label>User ID</label>
-                        <input type="text" id="auth-user" placeholder="name@company.com">
-                    </div>
-                    <div class="input-group-formal">
-                        <label>Password</label>
-                        <input type="password" id="auth-pass" placeholder="••••••••">
-                    </div>
-                    <p id="auth-error" class="error-msg"></p>
-                    <button class="btn-formal" onclick="handleAuthAction()" id="auth-btn">Sign In</button>
-                    <div class="auth-footer">
-                        <span id="auth-toggle-text">Need an account? </span>
-                        <a href="#" onclick="toggleAuthMode()">Request Access</a>
-                    </div>
-                </div>
-            </div>
-            <div class="copyright">
-                &copy; 2026 Enterprise SDLC. All rights reserved.
-            </div>
-        </div>
-    </div> 
 
     <div id="view-dashboard" class="view">
         <div class="dashboard-container">
@@ -100,10 +72,13 @@
                 </div>
 
                 <div style="display:flex; gap:10px; margin-left:auto; margin-right:10px;">
-                    <button class="btn-secondary" onclick="saveVersionSnapshot()">
+                    <button class="nav-action-btn btn-secondary" onclick="saveBRD()" style="border-color: var(--primary); color: var(--primary);">
+                        <span class="material-icons-outlined">download</span> Download BRD
+                    </button>
+                    <button class="nav-action-btn btn-secondary" onclick="saveVersionSnapshot()">
                         <span class="material-icons-outlined">save</span> Save Version
                     </button>
-                    <button class="btn-secondary" onclick="openVersionModal()">
+                    <button class="nav-action-btn btn-secondary" onclick="openVersionModal()">
                         <span class="material-icons-outlined">history</span> History
                     </button>
                 </div>
@@ -114,15 +89,12 @@
                 <aside class="sidebar">
                     <div class="section-title" style="font-weight:700; color:#333; margin-bottom:15px;">Navigation</div>
                     <div id="toc-list-container" class="file-list"></div>
-                    <div class="section-title" style="margin-top:30px; font-weight:700; color:#333; margin-bottom:15px;">Actions</div>
-                    <button class="action-btn fill" onclick="saveBRD()">Download Word</button>
-                    <button class="action-btn" onclick="openTocModal()">Regenerate TOC</button>
                 </aside>
 
                 <main class="editor-pane">
                     <div class="paper" contenteditable="true" id="brd-editor">
                         <h1 style="text-align:center;">Business Requirements Document</h1>
-                        <p style="text-align:center; color:#666;">Ready to generate...</p>
+                        <p style="text-align:center; color:#666;">Draft</p>
                     </div>
                     <div class="chat-floater">
                         <input type="text" id="agent-input" placeholder="Ask the agent to update requirements...">
@@ -131,7 +103,6 @@
                 </main>
 
                 <aside class="sidebar right" id="right-sidebar">
-                    
                     <div class="sidebar-toggle-btn" onclick="toggleRightSidebar()" title="Toggle Sidebar">
                         <span class="material-icons-outlined" id="sidebar-icon">chevron_right</span>
                     </div>
@@ -139,60 +110,33 @@
                     <div class="sidebar-content-wrapper">
                         <div class="guided-header">PROJECT REFERENCES</div>
                         <div class="ref-list">
-                            <div class="ref-item">
-                                <span class="material-icons-outlined ref-icon" style="color:#2E7D32;">description</span> Project_Plan.docx
-                            </div>
-                            <div class="ref-item">
-                                <span class="material-icons-outlined ref-icon" style="color:#1976D2;">table_chart</span> Financial_Report.xlsx
-                            </div>
-                            <div class="ref-item">
-                                <span class="material-icons-outlined ref-icon" style="color:#D32F2F;">picture_as_pdf</span> Architecture_v2.pdf
-                            </div>
+                            <div class="ref-item"><span class="material-icons-outlined ref-icon" style="color:#2E7D32;">description</span> Project_Plan.docx</div>
+                            <div class="ref-item"><span class="material-icons-outlined ref-icon" style="color:#1976D2;">table_chart</span> Financial_Report.xlsx</div>
+                            <div class="ref-item"><span class="material-icons-outlined ref-icon" style="color:#D32F2F;">picture_as_pdf</span> Architecture_v2.pdf</div>
                         </div>
 
                         <div class="guided-header">GUIDED PROMPTS</div>
                         <div class="prompts-container">
-                            
                             <div class="prompt-card" id="card-mom" onclick="openUploadPrompt('mom')">
-                                <div class="prompt-title">
-                                    <span>1. MOM</span>
-                                    <span class="material-icons-outlined prompt-icon">attach_file</span>
-                                </div>
+                                <div class="prompt-title"><span>1. MOM</span><span class="material-icons-outlined prompt-icon">attach_file</span></div>
                                 <p class="prompt-desc">Upload action items and decision summaries.</p>
                                 <div id="badge-container-mom" class="file-badge-container"></div>
                             </div>
-
                             <div class="prompt-card" id="card-drafts" onclick="openUploadPrompt('drafts')">
-                                <div class="prompt-title">
-                                    <span>2. Drafts</span>
-                                    <span class="material-icons-outlined prompt-icon">attach_file</span>
-                                </div>
+                                <div class="prompt-title"><span>2. Drafts</span><span class="material-icons-outlined prompt-icon">attach_file</span></div>
                                 <p class="prompt-desc">Upload working versions of plans or reports.</p>
                                 <div id="badge-container-drafts" class="file-badge-container"></div>
                             </div>
-
                             <div class="prompt-card" id="card-transcripts" onclick="openUploadPrompt('transcripts')">
-                                <div class="prompt-title">
-                                    <span>3. Transcripts</span>
-                                    <span class="material-icons-outlined prompt-icon">attach_file</span>
-                                </div>
+                                <div class="prompt-title"><span>3. Transcripts</span><span class="material-icons-outlined prompt-icon">attach_file</span></div>
                                 <p class="prompt-desc">Upload meeting transcripts and discussion logs.</p>
                                 <div id="badge-container-transcripts" class="file-badge-container"></div>
-                            </div>
-
-                             <div class="prompt-card" id="card-chats" onclick="openUploadPrompt('chats')">
-                                <div class="prompt-title">
-                                    <span>4. Chats</span>
-                                    <span class="material-icons-outlined prompt-icon">attach_file</span>
-                                </div>
-                                <p class="prompt-desc">Upload team chat exports.</p>
-                                <div id="badge-container-chats" class="file-badge-container"></div>
                             </div>
                         </div>
 
                         <div class="generate-btn-area">
-                            <button class="btn-full" onclick="generateBRDFromPrompts()">
-                                <span class="material-icons-outlined">auto_awesome</span> Generate BRD
+                            <button class="btn-full" onclick="openTocModal()">
+                                <span class="material-icons-outlined">list_alt</span> Generate TOC
                             </button>
                         </div>
                     </div>
@@ -201,60 +145,34 @@
         </div>
     </div>
 
-    <div id="modal-create-project" class="modal">
-        <div class="modal-content" style="width: 500px;">
-            <div style="padding: 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:#D32F2F;">Create New Project</h3>
-                <span class="material-icons-outlined" onclick="closeCreateModal()" style="cursor:pointer; color:#666;">close</span>
-            </div>
-            <div style="padding: 25px; display:flex; flex-direction:column; gap:15px;">
-                <div class="input-group-formal"><label>Project Name <span style="color:red">*</span></label><input type="text" id="cp-name"></div>
-                <div style="display:flex; gap:15px;">
-                    <div class="input-group-formal" style="flex:1;"><label>LOB <span style="color:red">*</span></label><select id="cp-lob"><option value="">Select...</option><option>ABHFL</option><option>CPX</option></select></div>
-                    <div class="input-group-formal" style="flex:1;"><label>Dept <span style="color:red">*</span></label><select id="cp-dept"><option value="">Select...</option><option>Finance</option><option>Risk</option></select></div>
-                </div>
-                <div class="input-group-formal"><label>Application</label><input type="text" id="cp-app"></div>
-                <div class="input-group-formal"><label>Description</label><textarea id="cp-desc" rows="3"></textarea></div>
-            </div>
-            <div style="padding:20px; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; background:#fafafa;">
-                <button class="btn-secondary" onclick="closeCreateModal()">Cancel</button>
-                <button class="btn-primary" onclick="submitCreateProject()">Create Project</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="modal-upload-prompt" class="modal">
-        <div class="modal-content" style="width: 450px;">
-            <div style="padding: 20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:#D32F2F;">Upload Files for: <span id="upload-type-label" style="text-transform:capitalize;"></span></h3>
-                <span class="material-icons-outlined" onclick="closeUploadPrompt()" style="cursor:pointer; color:#666;">close</span>
-            </div>
-            <div style="padding: 30px;">
-                <div class="upload-drop-zone" onclick="document.getElementById('hidden-file-input').click()">
-                    <span class="material-icons-outlined" style="font-size:32px; color:#D32F2F;">cloud_upload</span>
-                    <p style="margin:10px 0 5px; font-weight:600; color:#374151;">Click to Upload</p>
-                    <p style="margin:0; font-size:12px; color:#999;">PDF, DOCX, XLSX</p>
-                </div>
-                <input type="file" id="hidden-file-input" style="display:none" onchange="handlePromptFileUpload(this)">
-            </div>
-            <div style="padding:20px; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; background:#fafafa;">
-                <button class="btn-secondary" onclick="closeUploadPrompt()">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <div id="modal-toc" class="modal">
         <div class="modal-content">
-            <div style="padding:20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0; color:#D32F2F;">BRD Structure</h3>
+            <div style="padding:20px; border-bottom: 1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="margin:0; color:#D32F2F;">Project Context & Structure</h3>
                 <span class="material-icons-outlined" onclick="closeTocModal()" style="cursor:pointer; color:#666;">close</span>
             </div>
-            <div style="padding:20px; flex:1; display:flex; flex-direction:column;">
-                <p style="font-size:13px; color:#666; margin-top:0;">Agent will generate content based on this list.</p>
-                <textarea id="toc-draft-input" style="flex:1; padding:15px; border:1px solid #ddd; border-radius:6px; resize:none; font-family:inherit; min-height:300px;"></textarea>
+            <div class="toc-grid">
+                <div class="toc-col">
+                    <h4>Proposed Structure</h4>
+                    <textarea id="toc-structure" placeholder="1. Introduction..."></textarea>
+                </div>
+                <div class="toc-col">
+                    <h4>Project Summary</h4>
+                    <textarea id="toc-context" placeholder="What is this project about..."></textarea>
+                </div>
+                <div class="toc-col">
+                    <h4>Target Audience</h4>
+                    <div class="rte-container">
+                        <div class="rte-toolbar">
+                            <button class="rte-btn" onclick="execCmd('bold')">B</button>
+                            <button class="rte-btn" onclick="execCmd('italic')">I</button>
+                        </div>
+                        <div class="rte-content" id="toc-persona-editor" contenteditable="true"></div>
+                    </div>
+                </div>
             </div>
             <div style="padding:20px; border-top:1px solid #eee; display:flex; justify-content:space-between; background:#fafafa;">
-                <button class="btn-secondary" onclick="suggestTOCStructure()">Suggest</button>
+                <button class="btn-secondary" onclick="suggestTOCStructure()">Suggest Structure</button>
                 <div style="display:flex; gap:10px;">
                     <button class="btn-secondary" onclick="closeTocModal()">Cancel</button>
                     <button class="btn-primary" onclick="generateFullBRDFromTOC()">Generate</button>
@@ -262,26 +180,21 @@
             </div>
         </div>
     </div>
-    
-    <div id="modal-versions" class="modal">
-        <div class="modal-content" style="width:400px; max-height:500px;">
-            <div style="padding:20px; border-bottom:1px solid #eee; display:flex; justify-content:space-between; align-items:center;">
-                <h3 style="margin:0;">Version History</h3>
-                <span class="material-icons-outlined" onclick="document.getElementById('modal-versions').style.display='none'" style="cursor:pointer; color:#666;">close</span>
-            </div>
-            <div id="version-list" style="padding:20px; overflow-y:auto;"></div>
-        </div>
-    </div>
+
+    <div id="modal-create-project" class="modal">...</div>
+    <div id="modal-upload-prompt" class="modal">...</div>
+    <div id="modal-versions" class="modal">...</div>
 
     <script src="js/api.js"></script>
     <script src="js/app.js"></script>
     <script>
         function checkNav() {
             const nav = document.getElementById('main-navbar');
-            if(document.getElementById('view-auth').classList.contains('active')) nav.style.display = 'none';
-            else nav.style.display = 'flex';
+            if(document.getElementById('view-dashboard').style.display === 'flex' || document.getElementById('view-workspace').style.display === 'flex') nav.style.display = 'flex';
+            else nav.style.display = 'none';
         }
         setInterval(checkNav, 100);
+        function execCmd(c) { document.execCommand(c, false, null); }
     </script>
 </body>
 </html>
