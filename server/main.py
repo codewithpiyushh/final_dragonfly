@@ -11,13 +11,12 @@ from pydantic import BaseModel
 from datetime import datetime
 from bson import ObjectId
 from dotenv import load_dotenv 
+from typing import Dict, List, Any
 
-# 1. Load environment variables
 load_dotenv() 
 
 app = FastAPI()
 
-# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -26,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- CONFIGURATION (LOADED FROM .ENV) ---
 mongo_user_env = os.getenv("MONGO_USER")
 mongo_pass_env = os.getenv("MONGO_PASSWORD")
 mongo_cluster_env = os.getenv("MONGO_CLUSTER")
@@ -44,12 +42,10 @@ else:
     MONGO_URI = None
     print("❌ CRITICAL: MONGO_USER or MONGO_CLUSTER missing in .env")
 
-# Azure Agent
 AGENT_WSS_URL = os.getenv("AZURE_AGENT_WSS_URL")
 AGENT_NAME = os.getenv("AZURE_AGENT_NAME")
 AGENT_HEADERS = {"Ocp-Apim-Subscription-Key": os.getenv("AZURE_SUB_KEY", "")}
 
-# --- DB INIT ---
 db = None
 
 if MONGO_URI:
@@ -77,18 +73,21 @@ class Project(BaseModel):
     owner: str = "System"
     projectType: str = "New Development"
     createdOn: str = datetime.now().strftime("%Y-%m-%d")
-    current_content: str = "" # Stores the "Working Version"
+    current_content: str = ""
+    # NEW: Store prompts file data
+    prompts: Dict[str, List[Any]] = {} 
 
 class ProjectContentUpdate(BaseModel):
     content: str
 
-# UPDATED: Version model now includes metadata
+class ProjectPromptsUpdate(BaseModel):
+    prompts: Dict[str, List[Any]]
+
 class ProjectVersion(BaseModel):
     projectId: str
     versionName: str
     content: str
     timestamp: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # New Metadata fields
     projectName: str = ""
     lob: str = ""
     department: str = ""
@@ -150,7 +149,6 @@ async def delete_project(project_id: str):
         raise HTTPException(status_code=404, detail="Not found")
     except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-# Update "Working Version"
 @app.put("/api/projects/{project_id}/content")
 async def update_project_content(project_id: str, update: ProjectContentUpdate):
     if db is None: raise HTTPException(503, "Database not connected")
@@ -159,13 +157,25 @@ async def update_project_content(project_id: str, update: ProjectContentUpdate):
             {"_id": ObjectId(project_id)},
             {"$set": {"current_content": update.content}}
         )
-        if result.matched_count == 0:
-            raise HTTPException(status_code=404, detail="Project not found")
+        if result.matched_count == 0: raise HTTPException(404, "Project not found")
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail="Failed to save content")
 
-# Save History Version
+# NEW: Route to save Prompts Data
+@app.put("/api/projects/{project_id}/prompts")
+async def update_project_prompts(project_id: str, update: ProjectPromptsUpdate):
+    if db is None: raise HTTPException(503, "Database not connected")
+    try:
+        result = await db.projects.update_one(
+            {"_id": ObjectId(project_id)},
+            {"$set": {"prompts": update.prompts}}
+        )
+        if result.matched_count == 0: raise HTTPException(404, "Project not found")
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Failed to save prompts")
+
 @app.post("/api/versions")
 async def save_version(version: ProjectVersion):
     if db is None: raise HTTPException(503, "Database not connected")
@@ -186,13 +196,12 @@ async def get_versions(project_id: str):
         return versions
     except Exception as e: return []
 
-# --- WEBSOCKET WITH MOCK FALLBACK ---
 async def mock_agent_responder(client_ws: WebSocket):
-    await client_ws.send_text(json.dumps({"type": "stream", "message": "\n\n**[OFFLINE MODE]** Azure Agent is down. Using Mock Responder.\n\n"}))
+    await client_ws.send_text(json.dumps({"type": "stream", "message": "\n\n**[OFFLINE MODE]** Azure Agent is down.\n\n"}))
     try:
         while True:
             data = await client_ws.receive_text()
-            response_text = "### Mock Response\nThis is a simulation because the Azure Agent is currently unavailable."
+            response_text = "### Mock Response\nThis is a simulation."
             chunk_size = 5
             for i in range(0, len(response_text), chunk_size):
                 chunk = response_text[i:i+chunk_size]
@@ -204,11 +213,9 @@ async def mock_agent_responder(client_ws: WebSocket):
 @app.websocket("/ws/chat")
 async def websocket_endpoint(client_ws: WebSocket):
     await client_ws.accept()
-    print("Browser connected to WS")
     try:
-        if not AGENT_WSS_URL: raise Exception("No Azure URL Configured")
+        if not AGENT_WSS_URL: raise Exception("No Azure URL")
         async with websockets.connect(AGENT_WSS_URL, additional_headers=AGENT_HEADERS) as azure_ws:
-            print("✅ Connected to Azure Agent")
             async def browser_to_azure():
                 try:
                     while True:
@@ -225,8 +232,6 @@ async def websocket_endpoint(client_ws: WebSocket):
                 except Exception: await client_ws.close()
             await asyncio.gather(browser_to_azure(), azure_to_browser())
     except Exception as e:
-        print(f"⚠️ Azure Agent Error: {e}")
         await mock_agent_responder(client_ws)
 
-# --- STATIC FILES ---
 app.mount("/", StaticFiles(directory="../client", html=True), name="static")
