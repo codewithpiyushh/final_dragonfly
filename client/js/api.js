@@ -22,7 +22,6 @@ window.api = {
         return await res.json();
     },
 
-    // UPDATED: Accepts owner parameter
     getProjects: async (owner) => {
         const url = owner ? `${API_CONFIG.BASE}/projects?owner=${owner}` : `${API_CONFIG.BASE}/projects`;
         const res = await fetch(url);
@@ -43,16 +42,6 @@ window.api = {
         return await res.json();
     },
 
-    saveVersion: async (data) => {
-        const res = await fetch(`${API_CONFIG.BASE}/versions`, {
-            method: 'POST', headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(data)
-        });
-        return await res.json();
-    },
-    // ... existing functions ...
-
-    // NEW: Function to save current editor state
     saveProjectContent: async (id, content) => {
         const res = await fetch(`${API_CONFIG.BASE}/projects/${id}/content`, {
             method: 'PUT',
@@ -63,7 +52,25 @@ window.api = {
         return await res.json();
     },
 
-    // ... socket logic ...
+    // NEW: Save Prompt Files
+    saveProjectPrompts: async (id, prompts) => {
+        const res = await fetch(`${API_CONFIG.BASE}/projects/${id}/prompts`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ prompts })
+        });
+        if (!res.ok) throw new Error("Failed to save prompts");
+        return await res.json();
+    },
+
+    saveVersion: async (data) => {
+        const res = await fetch(`${API_CONFIG.BASE}/versions`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(data)
+        });
+        return await res.json();
+    },
+
     getVersions: async (projectId) => {
         const res = await fetch(`${API_CONFIG.BASE}/versions/${projectId}`);
         return await res.json();
